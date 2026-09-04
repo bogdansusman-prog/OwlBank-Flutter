@@ -21,8 +21,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isBalanceLoading = true;
   String _balanceError = '';
 
-  bool _isProfileMenuOpen = false;
-
   final List<HomeTransaction> _transactions = const [
     HomeTransaction(
       id: '1',
@@ -138,10 +136,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!mounted) return;
 
-    setState(() {
-      _isProfileMenuOpen = false;
-    });
-
     Navigator.pushNamedAndRemoveUntil(
       context,
       '/login',
@@ -163,7 +157,8 @@ class _HomeScreenState extends State<HomeScreen> {
         MediaQuery.of(context).size.width;
 
     final isMobile = width <= 650;
-    final isTablet = width <= 900;
+final isCompactNavbar = width <= 760;
+final isTablet = width <= 900;
 
     return Scaffold(
       backgroundColor:
@@ -201,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 _buildNavbar(
-                  isMobile: isMobile,
+                  isMobile: isCompactNavbar,
                 ),
 
                 SizedBox(
@@ -333,9 +328,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ] else
-                const Spacer(),
-
-              if (!isMobile)
                 const Spacer(),
 
               _buildProfileMenu(),
@@ -767,23 +759,42 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   )
-                : RawScrollbar(
-  controller: _transactionsScrollController,
-  thumbVisibility: true,
-  thickness: 6,
-  radius: const Radius.circular(999),
-  thumbColor: const Color(0xFF8B5CF6).withOpacity(0.55),
-  child: Padding(
-    padding: const EdgeInsets.only(right: 20),
-    child: ListView.builder(
-      controller: _transactionsScrollController,
-      padding: EdgeInsets.zero,
-      itemCount: _transactions.length,
-      itemBuilder: (context, index) {
-        return _transactionRow(
-          _transactions[index],
-        );
-      },
+                : ScrollConfiguration(
+  behavior: const MaterialScrollBehavior().copyWith(
+    dragDevices: {
+      PointerDeviceKind.touch,
+      PointerDeviceKind.mouse,
+      PointerDeviceKind.stylus,
+      PointerDeviceKind.trackpad,
+    },
+    scrollbars: false,
+  ),
+  child: RawScrollbar(
+    controller: _transactionsScrollController,
+    thumbVisibility: true,
+    trackVisibility: false,
+    interactive: true,
+    thickness: 6,
+    radius: const Radius.circular(999),
+    thumbColor: const Color(0xFF8B5CF6).withOpacity(0.55),
+    child: Padding(
+      padding: const EdgeInsets.only(
+        right: 20,
+      ),
+      child: ListView.builder(
+        controller: _transactionsScrollController,
+        primary: false,
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: ClampingScrollPhysics(),
+        ),
+        padding: EdgeInsets.zero,
+        itemCount: _transactions.length,
+        itemBuilder: (context, index) {
+          return _transactionRow(
+            _transactions[index],
+          );
+        },
+      ),
     ),
   ),
 ),
