@@ -1,9 +1,12 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../models/transaction.dart';
+import '../models/transaction_response.dart';
 import '../services/auth_service.dart';
+import '../services/transaction_service.dart';
 import '../services/user_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -16,62 +19,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final UserService _userService = UserService();
   final AuthService _authService = AuthService();
+  final TransactionService _transactionService = TransactionService();
     final ScrollController _transactionsScrollController = ScrollController();
   double _balance = 0;
   bool _isBalanceLoading = true;
   String _balanceError = '';
 
-  final List<HomeTransaction> _transactions = const [
-    HomeTransaction(
-      id: '1',
-      type: HomeTransactionType.deposit,
-      description: 'Salary',
-      amount: 5000,
-      date: '26 Aug 2026',
-    ),
-    HomeTransaction(
-      id: '2',
-      type: HomeTransactionType.withdrawal,
-      description: 'Shopping',
-      amount: -250,
-      date: '25 Aug 2026',
-    ),
-    HomeTransaction(
-      id: '3',
-      type: HomeTransactionType.transfer,
-      description: 'Transfer to 0722123456',
-      amount: -500,
-      date: '24 Aug 2026',
-    ),
-    HomeTransaction(
-      id: '4',
-      type: HomeTransactionType.deposit,
-      description: 'Freelance',
-      amount: 1200,
-      date: '23 Aug 2026',
-    ),
-    HomeTransaction(
-      id: '5',
-      type: HomeTransactionType.withdrawal,
-      description: 'ATM Withdrawal',
-      amount: -100,
-      date: '22 Aug 2026',
-    ),
-    HomeTransaction(
-      id: '6',
-      type: HomeTransactionType.transfer,
-      description: 'Transfer to 0744556677',
-      amount: -350,
-      date: '21 Aug 2026',
-    ),
-    HomeTransaction(
-      id: '7',
-      type: HomeTransactionType.deposit,
-      description: 'Refund',
-      amount: 180,
-      date: '20 Aug 2026',
-    ),
-  ];
+  List<HomeTransaction> _transactions = [];
+  bool _isTransactionsLoading = true;
+  String _transactionsError = '';
 
   @override
   void initState() {
@@ -100,7 +56,77 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    await _loadBalance();
+    await Future.wait([
+      _loadBalance(),
+      _loadTransactions(),
+    ]);
+  }
+
+  /// Loads the recent-transactions list from `/api/users/transactions`,
+  /// mirroring Angular's `Home.loadTransactions()` (newest first).
+  Future<void> _loadTransactions() async {
+    setState(() {
+      _isTransactionsLoading = true;
+      _transactionsError = '';
+    });
+
+    try {
+      final transactions = await _transactionService.getTransactions();
+
+      transactions.sort((a, b) {
+        final aDate = DateTime.tryParse(a.date) ?? DateTime(1970);
+        final bDate = DateTime.tryParse(b.date) ?? DateTime(1970);
+
+        return bDate.compareTo(aDate);
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        _transactions =
+            transactions.map(_mapTransaction).toList(growable: false);
+        _isTransactionsLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isTransactionsLoading = false;
+        _transactionsError = 'Could not load transactions.';
+      });
+
+      debugPrint('Transactions request failed: $error');
+    }
+  }
+
+  HomeTransaction _mapTransaction(TransactionResponse response) {
+    final typeText = response.type.toLowerCase();
+
+    HomeTransactionType type;
+
+    if (typeText.contains('deposit')) {
+      type = HomeTransactionType.deposit;
+    } else if (typeText.contains('withdraw')) {
+      type = HomeTransactionType.withdrawal;
+    } else {
+      type = HomeTransactionType.transfer;
+    }
+
+    return HomeTransaction(
+      id: response.id,
+      type: type,
+      description: response.description,
+      amount: response.amount,
+      date: _formatTransactionDate(response.date),
+    );
+  }
+
+  String _formatTransactionDate(String date) {
+    final parsed = DateTime.tryParse(date);
+
+    if (parsed == null) return date;
+
+    return DateFormat('dd MMM yyyy').format(parsed);
   }
 
   Future<void> _loadBalance() async {
@@ -748,7 +774,27 @@ final isTablet = width <= 900;
                 ),
               ),
             ),
-            child: _transactions.isEmpty
+            child: _isTransactionsLoading
+                ? const Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF8B5CF6),
+                      ),
+                    ),
+                  )
+                : _transactionsError.isNotEmpty
+                ? Center(
+                    child: Text(
+                      _transactionsError,
+                      style: const TextStyle(
+                        color: Color(0xFFF87171),
+                      ),
+                    ),
+                  )
+                : _transactions.isEmpty
                 ? const Center(
                     child: Text(
                       'No transactions yet.',

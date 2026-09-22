@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _isButtonHovered = false;
+  bool _obscurePassword = true;
 
   String _errorMessage = '';
 
@@ -271,8 +272,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                 controller: _passwordController,
                                 focusNode: _passwordFocusNode,
                                 hintText: 'Enter your password',
-                                obscureText: true,
+                                obscureText: _obscurePassword,
                                 onSubmitted: (_) => _login(),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                    color: const Color(0xFF9CA3AF),
+                                    size: 20,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                ),
                               ),
 
                               const SizedBox(height: 8),
@@ -515,6 +530,7 @@ class _LoginScreenState extends State<LoginScreen> {
     bool obscureText = false,
     TextInputType? keyboardType,
     ValueChanged<String>? onSubmitted,
+    Widget? suffixIcon,
   }) {
     return AnimatedBuilder(
       animation: focusNode,
@@ -556,6 +572,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 horizontal: 14,
                 vertical: 14,
               ),
+              suffixIcon: suffixIcon,
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(9),
                 borderSide: const BorderSide(
