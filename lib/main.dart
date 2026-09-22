@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+
+import 'screens/account_screen.dart';
+import 'screens/home_screen.dart';
+import 'screens/identity_verification_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
-import 'screens/home_screen.dart';
+import 'screens/reset_password_screen.dart';
+import 'screens/statements_screen.dart';
+import 'screens/transfer_screen.dart';
+import 'widgets/auth_guard.dart';
 
 void main() {
   runApp(const OwlBankApp());
@@ -20,53 +27,41 @@ class OwlBankApp extends StatelessWidget {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF060B18),
       ),
+      // Mirrors Angular's `app.routes.ts`: '/' redirects to '/login',
+      // an unknown path also falls back to '/login', and home /
+      // transfer / statements / account are guarded (see AuthGuard).
       initialRoute: '/login',
       routes: {
         '/login': (_) => const LoginScreen(),
-
-        '/home': (_) => const HomeScreen(),
-
         '/register': (_) => const RegisterScreen(),
+        '/reset-password': (_) => const ResetPasswordScreen(),
 
-        '/reset-password': (_) => const PlaceholderScreen(
-              title: 'Reset Password',
-            ),
-        '/account': (_) => const PlaceholderScreen(
-            title: 'Account',
+        // Present in the original Angular codebase but not linked from
+        // any route or page there either — kept for parity.
+        '/identity-verification': (_) =>
+            const IdentityVerificationScreen(),
+
+        '/home': (_) => AuthGuard(
+              builder: (_) => const HomeScreen(),
             ),
 
-        '/transfer': (_) => const PlaceholderScreen(
-            title: 'Transfer',
+        '/transfer': (_) => AuthGuard(
+              builder: (_) => const TransferScreen(),
             ),
-        '/statements': (_) => const PlaceholderScreen(
-            title: 'Statements',
+
+        '/account': (_) => AuthGuard(
+              builder: (_) => const AccountScreen(),
+            ),
+
+        '/statements': (_) => AuthGuard(
+              builder: (_) => const StatementsScreen(),
             ),
       },
-    );
-  }
-}
-
-class PlaceholderScreen extends StatelessWidget {
-  final String title;
-
-  const PlaceholderScreen({
-    super.key,
-    required this.title,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF060B18),
-      body: Center(
-        child: Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 32,
-          ),
-        ),
-      ),
+      onUnknownRoute: (settings) {
+        return MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+        );
+      },
     );
   }
 }

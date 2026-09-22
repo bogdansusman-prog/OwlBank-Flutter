@@ -1,15 +1,9 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'api_client.dart';
 
 class AuthService {
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: 'http://localhost:8081',
-    ),
-  );
-
-  final FlutterSecureStorage _storage =
-      const FlutterSecureStorage();
+  final Dio _dio = ApiClient.instance.dio;
 
   Future<bool> login({
     required String email,
@@ -33,7 +27,7 @@ class AuthService {
         return false;
       }
 
-      await _storage.write(
+      await kSecureStorage.write(
         key: 'token',
         value: token,
       );
@@ -86,14 +80,40 @@ class AuthService {
     }
   }
 
+  /// Resets the password for an account the user is *not* currently
+  /// signed into (they supply their current password by hand). Mirrors
+  /// Angular's `AuthService.resetPassword()`, used by the standalone
+  /// "Reset password" screen reachable from the login page.
+  Future<String> resetPassword({
+    required String email,
+    required String password,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final response = await _dio.patch(
+      '/resetpassword',
+      queryParameters: {
+        'email': email,
+        'password': password,
+        'newPassword': newPassword,
+        'confirmPassword': confirmPassword,
+      },
+      options: Options(
+        responseType: ResponseType.plain,
+      ),
+    );
+
+    return response.data?.toString() ?? '';
+  }
+
   Future<String?> getToken() async {
-    return await _storage.read(
+    return await kSecureStorage.read(
       key: 'token',
     );
   }
 
   Future<void> logout() async {
-    await _storage.delete(
+    await kSecureStorage.delete(
       key: 'token',
     );
   }
