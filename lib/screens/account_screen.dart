@@ -1806,7 +1806,7 @@ class _TiltCardState extends State<_TiltCard>
     _turbulenceController.forward(from: 0);
   }
 
-  void _onPointerHover(PointerHoverEvent event) {
+  void _onPointerHover(PointerEvent event) {
     if (!widget.enabled) return;
     if (event.kind != PointerDeviceKind.mouse) return;
 
