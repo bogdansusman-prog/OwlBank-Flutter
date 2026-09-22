@@ -19,6 +19,11 @@ class StatementsScreen extends StatefulWidget {
 }
 
 class _StatementsScreenState extends State<StatementsScreen> {
+  // Each _transactionRow is pinned to exactly this height so 4 of them
+  // fill the scrollable table area precisely, with nothing cut off
+  // mid-row.
+  static const double _transactionRowHeight = 68;
+
   final StatementService _statementService = StatementService();
   final AuthService _authService = AuthService();
 
@@ -200,6 +205,10 @@ class _StatementsScreenState extends State<StatementsScreen> {
     final width = MediaQuery.of(context).size.width;
     final isMobile = width <= 650;
     final isCompactNavbar = width <= 760;
+    // Angular's `.summary-grid` drops from 4 columns to 2 at 1050px,
+    // well before the mobile breakpoint - a plain isMobile check left
+    // 4 cramped columns all the way down to 650px.
+    final isTablet = width <= 1050;
 
     return Scaffold(
       backgroundColor: const Color(0xFF060B18),
@@ -285,7 +294,7 @@ class _StatementsScreenState extends State<StatementsScreen> {
 
                       const SizedBox(height: 22),
 
-                      _buildStatementCard(isMobile: isMobile),
+                      _buildStatementCard(isMobile: isMobile, isTablet: isTablet),
                     ],
                   ),
                 ),
@@ -487,7 +496,7 @@ class _StatementsScreenState extends State<StatementsScreen> {
     );
   }
 
-  Widget _buildStatementCard({required bool isMobile}) {
+  Widget _buildStatementCard({required bool isMobile, required bool isTablet}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -551,12 +560,14 @@ class _StatementsScreenState extends State<StatementsScreen> {
           const SizedBox(height: 20),
 
           GridView.count(
-            crossAxisCount: isMobile ? 2 : 4,
+            // Matches Angular's `.summary-grid` breakpoints: 4 columns
+            // above 1050px, 2 columns from there down to mobile.
+            crossAxisCount: isTablet ? 2 : 4,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: isMobile ? 1.5 : 1.3,
+            childAspectRatio: isTablet ? 1.5 : 1.3,
             children: [
               _summaryCard(
                 icon: Icons.account_balance_wallet,
@@ -681,10 +692,23 @@ class _StatementsScreenState extends State<StatementsScreen> {
                     ],
                   ),
                 )
-              : Column(
-                  children: _periodTransactions
-                      .map((transaction) => _transactionRow(transaction))
-                      .toList(),
+              : ConstrainedBox(
+                  // Fixed at exactly 4 rows tall - not a rough guess -
+                  // so at most 4 transactions ever show at once and
+                  // the rest live behind the table's own scrollbar,
+                  // while the page around it stays a single page.
+                  constraints: const BoxConstraints(
+                    maxHeight: _transactionRowHeight * 4,
+                  ),
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      itemCount: _periodTransactions.length,
+                      itemBuilder: (context, index) =>
+                          _transactionRow(_periodTransactions[index]),
+                    ),
+                  ),
                 ),
         ],
       ),
@@ -750,14 +774,16 @@ class _StatementsScreenState extends State<StatementsScreen> {
         break;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0x0EFFFFFF)),
+    return SizedBox(
+      height: _transactionRowHeight,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: const BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Color(0x0EFFFFFF)),
+          ),
         ),
-      ),
-      child: Row(
+        child: Row(
         children: [
           Container(
             width: 36,
@@ -829,6 +855,7 @@ class _StatementsScreenState extends State<StatementsScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

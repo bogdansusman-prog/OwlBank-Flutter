@@ -94,7 +94,9 @@ class _IdentityVerificationScreenState
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth <= 480;
+    // Angular's identity-verification.css breaks at 560px, not 480px
+    // like the other auth screens.
+    final isMobile = screenWidth <= 560;
 
     return Scaffold(
       body: Container(

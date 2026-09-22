@@ -225,121 +225,82 @@ class _TransferScreenState
                         builder:
                             (context,
                                 constraints) {
-                          if (constraints
-                                  .maxWidth <=
-                              650) {
+                          final cards = [
+                            _actionCard(
+                              icon: Icons.send,
+                              title: 'Send Money',
+                              description:
+                                  'Transfer money instantly to another OwlBank user.',
+                              buttonText: 'Send Money',
+                              onTap: _openSendMoney,
+                            ),
+                            _actionCard(
+                              icon: Icons.add_circle_outline,
+                              title: 'Deposit Money',
+                              description:
+                                  'Add money to your OwlBank balance.',
+                              buttonText: 'Deposit',
+                              onTap: _openDeposit,
+                            ),
+                            _actionCard(
+                              icon: Icons.remove_circle_outline,
+                              title: 'Withdraw Money',
+                              description:
+                                  'Withdraw funds from your available balance.',
+                              buttonText: 'Withdraw',
+                              onTap: _openWithdraw,
+                            ),
+                          ];
+
+                          // Mirrors Angular's `.transfer-options` CSS
+                          // grid breakpoints: 1 column at 800px and
+                          // below (was wrongly 650px before, which let
+                          // this fall through to the cramped 3-column
+                          // Row between 651-800px), 2 columns from
+                          // 801-1050px, 3 columns above that.
+                          if (constraints.maxWidth <= 800) {
                             return Column(
                               children: [
-                                _actionCard(
-                                  icon:
-                                      Icons.send,
-                                  title:
-                                      'Send Money',
-                                  description:
-                                      'Transfer money instantly to another OwlBank user.',
-                                  buttonText:
-                                      'Send Money',
-                                  onTap:
-                                      _openSendMoney,
-                                ),
-
-                                const SizedBox(
-                                  height: 20,
-                                ),
-
-                                _actionCard(
-                                  icon: Icons
-                                      .add_circle_outline,
-                                  title:
-                                      'Deposit Money',
-                                  description:
-                                      'Add money to your OwlBank balance.',
-                                  buttonText:
-                                      'Deposit',
-                                  onTap:
-                                      _openDeposit,
-                                ),
-
-                                const SizedBox(
-                                  height: 20,
-                                ),
-
-                                _actionCard(
-                                  icon: Icons
-                                      .remove_circle_outline,
-                                  title:
-                                      'Withdraw Money',
-                                  description:
-                                      'Withdraw funds from your available balance.',
-                                  buttonText:
-                                      'Withdraw',
-                                  onTap:
-                                      _openWithdraw,
-                                ),
+                                for (var i = 0; i < cards.length; i++) ...[
+                                  if (i != 0) const SizedBox(height: 20),
+                                  cards[i],
+                                ],
                               ],
                             );
                           }
 
+                          if (constraints.maxWidth <= 1050) {
+                            return Wrap(
+                              spacing: 20,
+                              runSpacing: 20,
+                              children: [
+                                for (final card in cards)
+                                  SizedBox(
+                                    width: (constraints.maxWidth - 20) / 2,
+                                    child: card,
+                                  ),
+                              ],
+                            );
+                          }
+
+                          // No crossAxisAlignment.stretch here: this Row
+                          // sits inside a LayoutBuilder that's inside a
+                          // scrolling column with unbounded height, so
+                          // "stretch to fill" has no height to stretch to
+                          // and crashes. IntrinsicHeight can't fix it
+                          // either, since each card's own build() uses a
+                          // LayoutBuilder internally (for hover-glow
+                          // positioning), and LayoutBuilder explicitly
+                          // can't report intrinsic dimensions. Each card
+                          // already carries `minHeight: 330` in its own
+                          // decoration, so the row still looks even
+                          // without an explicit stretch.
                           return Row(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .stretch,
                             children: [
-                              Expanded(
-                                child:
-                                    _actionCard(
-                                  icon:
-                                      Icons.send,
-                                  title:
-                                      'Send Money',
-                                  description:
-                                      'Transfer money instantly to another OwlBank user.',
-                                  buttonText:
-                                      'Send Money',
-                                  onTap:
-                                      _openSendMoney,
-                                ),
-                              ),
-
-                              const SizedBox(
-                                width: 20,
-                              ),
-
-                              Expanded(
-                                child:
-                                    _actionCard(
-                                  icon: Icons
-                                      .add_circle_outline,
-                                  title:
-                                      'Deposit Money',
-                                  description:
-                                      'Add money to your OwlBank balance.',
-                                  buttonText:
-                                      'Deposit',
-                                  onTap:
-                                      _openDeposit,
-                                ),
-                              ),
-
-                              const SizedBox(
-                                width: 20,
-                              ),
-
-                              Expanded(
-                                child:
-                                    _actionCard(
-                                  icon: Icons
-                                      .remove_circle_outline,
-                                  title:
-                                      'Withdraw Money',
-                                  description:
-                                      'Withdraw funds from your available balance.',
-                                  buttonText:
-                                      'Withdraw',
-                                  onTap:
-                                      _openWithdraw,
-                                ),
-                              ),
+                              for (var i = 0; i < cards.length; i++) ...[
+                                if (i != 0) const SizedBox(width: 20),
+                                Expanded(child: cards[i]),
+                              ],
                             ],
                           );
                         },
@@ -871,7 +832,15 @@ class _TransferActionCardState
                   ),
                 ),
 
-                const Spacer(),
+                // No Spacer() here: this Column can get an
+                // unbounded height (its AnimatedContainer parent
+                // only sets a minHeight, not a maxHeight), and a
+                // Spacer (an Expanded under the hood) can't expand
+                // into infinite space. A fixed gap keeps the button
+                // right under the description instead.
+                const SizedBox(
+                  height: 25,
+                ),
 
                 SizedBox(
                   width:

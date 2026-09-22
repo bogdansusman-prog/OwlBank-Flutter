@@ -23,6 +23,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _isLoading = false;
   bool _isButtonHovered = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   String _errorMessage = '';
 
@@ -362,7 +364,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   _passwordController,
                               hint:
                                   'Minimum 8 characters',
-                              obscureText: true,
+                              obscureText: _obscurePassword,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  color: const Color(0xFF9CA3AF),
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
                             ),
 
                             _field(
@@ -372,7 +388,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   _confirmPasswordController,
                               hint:
                                   'Enter password again',
-                              obscureText: true,
+                              obscureText: _obscureConfirmPassword,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscureConfirmPassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                  color: const Color(0xFF9CA3AF),
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  });
+                                },
+                              ),
                             ),
 
                             if (_errorMessage
@@ -662,6 +693,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String hint,
     bool obscureText = false,
     TextInputType? keyboardType,
+    Widget? suffixIcon,
   }) {
     return Padding(
       padding: const EdgeInsets.only(
@@ -706,6 +738,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 horizontal: 14,
                 vertical: 14,
               ),
+              suffixIcon: suffixIcon,
               enabledBorder:
                   OutlineInputBorder(
                 borderRadius:

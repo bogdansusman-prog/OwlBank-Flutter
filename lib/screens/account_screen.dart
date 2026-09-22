@@ -863,58 +863,100 @@ class _AccountScreenState extends State<AccountScreen> {
 
     return Column(
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: _buildCardOptions(),
-        ),
-
         const SizedBox(height: 6),
 
         if (_cards.isEmpty)
-          _statusPanel(
-            icon: Icons.credit_card_off,
-            text: 'No cards yet. Add one to get started.',
+          // Stack here always has a determinate size (the status panel
+          // sizes to its own content), so it's safe inside the
+          // unbounded-height scroll view this section lives in.
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _statusPanel(
+                icon: Icons.credit_card_off,
+                text: 'No cards yet. Add one to get started.',
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                child: _buildCardOptions(),
+              ),
+            ],
           )
         else ...[
-          SizedBox(
-            height: 220,
-            child: PageView.builder(
-              controller: _cardPageController,
-              itemCount: _cards.length,
-              onPageChanged: (index) {
-                setState(() {
-                  _activeCardIndex = index;
-                  _isCardFlipped = false;
-                });
-              },
-              itemBuilder: (context, index) {
-                final card = _cards[index];
-                final isActive = index == _activeCardIndex;
+          // Real bank cards have a fixed ~1.68:1 aspect ratio and never
+          // grow past a realistic card width, no matter how wide the
+          // window is (mirrors Angular's `.carousel-card { width: 420px;
+          // height: 250px; }`). LayoutBuilder lets us cap the card at
+          // 420x250 while still shrinking gracefully on narrow screens.
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cardWidth = math.min(
+                constraints.maxWidth * 0.86,
+                420.0,
+              );
+              final cardHeight = cardWidth / 1.68;
 
-                return AnimatedScale(
-                  duration: const Duration(milliseconds: 220),
-                  scale: isActive ? 1.0 : 0.9,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 220),
-                    opacity: isActive ? 1.0 : 0.55,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: GestureDetector(
-                        onTap: () => _goToCard(index),
-                        child: _TiltCard(
-                          enabled: isActive && !_isCardFlipped,
-                          child: _BankCard(
-                            card: card,
-                            isFlipped: isActive && _isCardFlipped,
-                            maskedNumber: _maskedNumber(card.cardNumber),
+              // Only wrap the fixed-height PageView (not the whole
+              // section) in a Stack, so its size is always determinate -
+              // this section lives inside a scrolling, unbounded-height
+              // column, and a Stack spanning content of indeterminate
+              // height there can fail to lay out.
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  SizedBox(
+                    height: cardHeight,
+                    child: PageView.builder(
+                      controller: _cardPageController,
+                      itemCount: _cards.length,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _activeCardIndex = index;
+                          _isCardFlipped = false;
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        final card = _cards[index];
+                        final isActive = index == _activeCardIndex;
+
+                        return AnimatedScale(
+                          duration: const Duration(milliseconds: 220),
+                          scale: isActive ? 1.0 : 0.9,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 220),
+                            opacity: isActive ? 1.0 : 0.55,
+                            child: Center(
+                              child: SizedBox(
+                                width: cardWidth,
+                                height: cardHeight,
+                                child: GestureDetector(
+                                  onTap: () => _goToCard(index),
+                                  child: _TiltCard(
+                                    enabled: isActive && !_isCardFlipped,
+                                    child: _BankCard(
+                                      card: card,
+                                      isFlipped: isActive && _isCardFlipped,
+                                      maskedNumber:
+                                          _maskedNumber(card.cardNumber),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     ),
                   ),
-                );
-              },
-            ),
+                  Positioned(
+                    top: -4,
+                    right: 8,
+                    child: _buildCardOptions(),
+                  ),
+                ],
+              );
+            },
           ),
 
           const SizedBox(height: 18),
@@ -1469,10 +1511,11 @@ class _BankCard extends StatelessWidget {
                   fontSize: 16,
                 ),
               ),
-              Icon(
-                Icons.remove_red_eye_outlined,
-                color: Colors.white.withOpacity(0.35),
-                size: 18,
+              Image.asset(
+                'assets/images/owlbank-logo.png',
+                width: 34,
+                height: 34,
+                fit: BoxFit.contain,
               ),
             ],
           ),
@@ -1698,7 +1741,7 @@ class _TiltCard extends StatefulWidget {
 }
 
 class _TiltCardState extends State<_TiltCard>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const double _maxTiltDeg = 11;
   static const double _deadZone = 0.05;
 
@@ -1714,6 +1757,17 @@ class _TiltCardState extends State<_TiltCard>
 
   late final AnimationController _turbulenceController;
 
+  // Drives ONLY the "return to flat" transition on pointer exit. Live
+  // tracking while the pointer moves over the card sets _tiltXDeg/
+  // _tiltYDeg directly (see _applyTilt) so the card follows the cursor
+  // instantly; if that also went through an AnimatedContainer, every
+  // hover event would retarget its 280ms easing mid-flight, and the
+  // card would spend the whole time chasing a moving target instead
+  // of tracking the cursor - correct only once the cursor stops.
+  late final AnimationController _resetController;
+  Animation<double>? _resetXAnimation;
+  Animation<double>? _resetYAnimation;
+
   @override
   void initState() {
     super.initState();
@@ -1722,6 +1776,19 @@ class _TiltCardState extends State<_TiltCard>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+
+    _resetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    )..addListener(() {
+        if (!mounted) return;
+        if (_resetXAnimation == null || _resetYAnimation == null) return;
+
+        setState(() {
+          _tiltXDeg = _resetXAnimation!.value;
+          _tiltYDeg = _resetYAnimation!.value;
+        });
+      });
   }
 
   @override
@@ -1740,6 +1807,7 @@ class _TiltCardState extends State<_TiltCard>
   void dispose() {
     _holdTimer?.cancel();
     _turbulenceController.dispose();
+    _resetController.dispose();
 
     super.dispose();
   }
@@ -1781,6 +1849,10 @@ class _TiltCardState extends State<_TiltCard>
       lightingOpacity = 0.18 + strength * 0.68;
     }
 
+    // Stop any in-flight "return to flat" animation so it can't keep
+    // overwriting _tiltXDeg/_tiltYDeg out from under this live update.
+    _resetController.stop();
+
     setState(() {
       _tiltXDeg = rotateX;
       _tiltYDeg = rotateY;
@@ -1793,9 +1865,19 @@ class _TiltCardState extends State<_TiltCard>
   void _resetTilt() {
     if (!mounted) return;
 
+    _resetXAnimation = Tween<double>(begin: _tiltXDeg, end: 0).animate(
+      CurvedAnimation(parent: _resetController, curve: Curves.easeOut),
+    );
+    _resetYAnimation = Tween<double>(begin: _tiltYDeg, end: 0).animate(
+      CurvedAnimation(parent: _resetController, curve: Curves.easeOut),
+    );
+
+    _resetController
+      ..stop()
+      ..reset()
+      ..forward();
+
     setState(() {
-      _tiltXDeg = 0;
-      _tiltYDeg = 0;
       _lightX = 50;
       _lightY = 50;
       _lightingOpacity = 0;
@@ -1890,43 +1972,28 @@ class _TiltCardState extends State<_TiltCard>
           onPointerMove: _onPointerMove,
           onPointerUp: _onPointerUp,
           onPointerCancel: _onPointerCancel,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOut,
+          child: Container(
+            // Plain Container, not AnimatedContainer: the transform
+            // below must apply immediately every time _tiltXDeg/
+            // _tiltYDeg change. Live hover updates set those directly
+            // (instant 1:1 tracking); the "return to flat" case eases
+            // them back to 0 itself via _resetController, frame by
+            // frame, so this widget doesn't need its own animation on
+            // top of that.
             transformAlignment: Alignment.center,
+            // Negated: Flutter's Matrix4 rotateX/rotateY turn out to spin
+            // opposite to CSS's rotateX/rotateY for the same sign, so a
+            // direct port of the Angular values made the far corner tilt
+            // instead of the corner under the cursor. Flipping the sign
+            // here (only for the actual 3D transform - the underlying
+            // _tiltXDeg/_tiltYDeg values stay as computed, matching
+            // Angular, since the light position math below depends on
+            // them) fixes the direction without touching the physics.
             transform: Matrix4.identity()
               ..setEntry(3, 2, 0.0016)
-              ..rotateX(_tiltXDeg * math.pi / 180)
-              ..rotateY(_tiltYDeg * math.pi / 180),
-            child: Stack(
-              children: [
-                widget.child,
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 280),
-                      curve: Curves.easeOut,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        gradient: RadialGradient(
-                          center: Alignment(
-                            (_lightX / 100) * 2 - 1,
-                            (_lightY / 100) * 2 - 1,
-                          ),
-                          radius: 1.15,
-                          colors: [
-                            Colors.white.withOpacity(
-                              0.30 * _lightingOpacity,
-                            ),
-                            Colors.white.withOpacity(0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ..rotateX(-_tiltXDeg * math.pi / 180)
+              ..rotateY(-_tiltYDeg * math.pi / 180),
+            child: widget.child,
           ),
         ),
       ),
